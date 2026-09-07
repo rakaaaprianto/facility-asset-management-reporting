@@ -31,6 +31,8 @@ const allowedOrigins = [
   "localhost:3000",
   "127.0.0.1:3000",
   "*.vercel.app",
+  "monthly-reportfam.web.id",
+  "*.monthly-reportfam.web.id",
 ];
 
 // Allow optional custom origin from environment
