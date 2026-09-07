@@ -22,6 +22,13 @@ export const metadata: Metadata = {
   },
   description:
     "Sistem pelaporan aset & fasilitas bulanan Infomedia — pengganti template Excel Monthly Report.",
+  icons: {
+    icon: [
+      { url: "/logo/logo.png", type: "image/png" },
+    ],
+    shortcut: "/logo/logo.png",
+    apple: "/logo/logo.png",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
