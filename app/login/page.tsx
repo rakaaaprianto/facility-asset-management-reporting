@@ -114,7 +114,7 @@ export default function LoginPage() {
           <LoginForm />
 
           <p className="mt-8 text-center text-xs text-slate-400">
-            © {new Date().getFullYear()} Infomedia Nusantara — Asset & Facility Management
+            © {new Date().getFullYear()} Infomedia Nusantara — Facility & Asset Management
           </p>
         </div>
       </div>
