@@ -1,0 +1,132 @@
+@import "tailwindcss";
+
+/* ─── Design Tokens ───────────────────────────────────────────────── */
+:root {
+  /* Background / Surface */
+  --background: #f4f4f7;
+  --foreground: #0f0f13;
+  --surface: #ffffff;
+  --surface-muted: #f9f9fb;
+  --border: #e5e5ec;
+  --border-subtle: #eeeef4;
+
+  /* Brand: Infomedia Red #E31E2D */
+  --brand-50:  #fff1f1;
+  --brand-100: #ffe0e1;
+  --brand-200: #ffc6c8;
+  --brand-300: #ff9ea1;
+  --brand-400: #ff6468;
+  --brand-500: #f83038;
+  --brand-600: #e31e2d;
+  --brand-700: #bf0e1b;
+  --brand-800: #9e101b;
+  --brand-900: #84131c;
+  --brand-950: #48050b;
+
+  /* Sidebar dark */
+  --sidebar-bg: #16060a;
+  --sidebar-bg-hover: #2a0c12;
+  --sidebar-active-bg: #e31e2d;
+  --sidebar-active-text: #ffffff;
+  --sidebar-text: #f0c4c8;
+  --sidebar-text-muted: #9c6670;
+  --sidebar-border: #2e0f16;
+  --sidebar-logo-filter: brightness(0) invert(1);
+
+  /* Semantic */
+  --success: #16a34a;
+  --success-bg: #f0fdf4;
+  --warning: #d97706;
+  --warning-bg: #fffbeb;
+  --danger: #dc2626;
+  --danger-bg: #fef2f2;
+  --info: #2563eb;
+  --info-bg: #eff6ff;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.07), 0 1px 2px -1px rgb(0 0 0 / 0.06);
+  --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.06);
+  --shadow-lg: 0 8px 24px -4px rgb(0 0 0 / 0.10), 0 4px 8px -4px rgb(0 0 0 / 0.06);
+}
+
+/* ─── Tailwind Theme ───────────────────────────────────────────────── */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-border: var(--border);
+
+  --font-sans: var(--font-geist-sans), 'Inter', system-ui, -apple-system, Arial, sans-serif;
+  --font-mono: var(--font-geist-mono);
+
+  --color-brand-50:  var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-200: var(--brand-200);
+  --color-brand-300: var(--brand-300);
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-brand-800: var(--brand-800);
+  --color-brand-900: var(--brand-900);
+  --color-brand-950: var(--brand-950);
+
+  --color-accent: var(--brand-600);
+
+  /* Sidebar tokens */
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-sidebar-hover: var(--sidebar-bg-hover);
+  --color-sidebar-active: var(--sidebar-active-bg);
+  --color-sidebar-text: var(--sidebar-text);
+  --color-sidebar-muted: var(--sidebar-text-muted);
+  --color-sidebar-border: var(--sidebar-border);
+}
+
+/* ─── Base ─────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Focus Ring ───────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--brand-500);
+  outline-offset: 2px;
+}
+
+/* ─── Scrollbar ─────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d1da; border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: #a1a1b0; }
+
+/* ─── Utility ───────────────────────────────────────────────────────── */
+.card-shadow {
+  box-shadow: var(--shadow-sm);
+}
+
+/* ─── Micro-animation helpers ────────────────────────────────────────── */
+@media (prefers-reduced-motion: no-preference) {
+  .animate-fade-in {
+    animation: fade-in 0.25s ease both;
+  }
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+}

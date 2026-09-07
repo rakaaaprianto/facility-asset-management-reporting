@@ -1,0 +1,1 @@
+ALTER TABLE "SecurityHeadcount" ADD COLUMN IF NOT EXISTS "totalCount" INTEGER;

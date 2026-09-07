@@ -1,0 +1,1258 @@
+// ============================================================
+// Infomedia Monthly Asset Management Reporting System
+// Prisma Schema v2 — production ready (PostgreSQL / Neon)
+// Basis desain: docs/03-database-design.md
+// ============================================================
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum RoleCode {
+  SUPER_ADMIN
+  ADMIN
+  PIC
+  SUPPORT
+}
+
+enum ReportStatus {
+  DRAFT
+  SUBMITTED
+  NEEDS_REVISION
+  APPROVED
+}
+
+enum WorkStatus {
+  ACTIVE
+  NEAR_EXPIRED
+  EXPIRED
+  RENEWAL_PROCESS
+  NOT_STARTED
+  PROGRESS
+  IN_PROGRESS
+  IN_PROCESS
+  DONE
+  OVERDUE
+  OPEN
+  PAID
+  CLOSED
+  CANCELLED
+  APPROVED
+  REJECTED
+  COMPLETED
+  PROPOSED
+  PROCUREMENT
+  EXECUTED
+  DRAFT
+}
+
+enum SeverityLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ProbabilityLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum BudgetType {
+  PROJECT
+  RKAP
+  CAPEX
+  OPEX
+}
+
+enum UtilityType {
+  ELECTRICITY
+  WATER
+}
+
+enum UnitOfMeasure {
+  UNIT
+  BUAH
+  LITER
+  M3
+  KWH
+  SET
+  ORANG
+}
+
+enum FacilityAspect {
+  SECURITY
+  CLEANING
+  DRIVER
+  ME
+}
+
+enum BookingStatus {
+  BOOKING
+  DEAL
+  USED
+  ON_PROGRESS
+}
+
+enum ExpenseType {
+  CASH_ADVANCE
+  REIMBURSE
+}
+
+enum AssetStatus {
+  ACTIVE
+  IDLE
+  MUTATED
+  DISPOSED
+}
+
+// ============================================================
+// IAM — ROLES, PERMISSIONS, USERS
+// ============================================================
+
+model Role {
+  id          String   @id @default(uuid(7))
+  code        RoleCode @unique
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id       String           @id @default(uuid(7))
+  resource String
+  action   String
+  roles    RolePermission[]
+
+  @@unique([resource, action])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  assignedAt   DateTime @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+}
+
+model User {
+  id            String    @id @default(uuid(7))
+  name          String
+  email         String    @unique
+  passwordHash  String
+  phone         String?
+  employeeTitle String?
+  roleId        String
+  isActive      Boolean   @default(true)
+  lastLoginAt   DateTime?
+  deletedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  role             Role                 @relation(fields: [roleId], references: [id])
+  siteAssignments  UserSiteAssignment[]
+  primaryPicSites  Site[]               @relation("SitePrimaryPic")
+  submittedReports MonthlyReport[]      @relation("ReportSubmitter")
+  reviewedReports  MonthlyReport[]      @relation("ReportReviewer")
+  statusLogs       ReportStatusLog[]
+  auditLogs        AuditLog[]
+  attachments      Attachment[]
+  pksContracts     PksContract[]
+
+  @@index([roleId])
+  @@index([isActive])
+}
+
+model UserSiteAssignment {
+  userId     String
+  siteId     String
+  assignedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@id([userId, siteId])
+  @@index([siteId])
+}
+
+// ============================================================
+// MASTER DATA
+// ============================================================
+
+model Region {
+  id        String   @id @default(uuid(7))
+  name      String   @unique
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sites Site[]
+}
+
+model Site {
+  id           String    @id @default(uuid(7))
+  code         String    @unique
+  name         String    @unique
+  city         String
+  province     String?
+  address      String?
+  primaryPicId String?
+  regionId     String?
+  isActive     Boolean   @default(true)
+  /// isArea = true berarti ini bukan site fisik, melainkan representasi "Area" (misal: AREA-2)
+  isArea       Boolean   @default(false)
+  /// areaCode diisi jika isArea=true, cth: "AREA_2", "AREA_1"
+  areaCode     String?
+  deletedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  primaryPic    User?                @relation("SitePrimaryPic", fields: [primaryPicId], references: [id])
+  region        Region?              @relation(fields: [regionId], references: [id])
+  users         UserSiteAssignment[]
+  buildings     Building[]
+  reports       MonthlyReport[]
+  pksContracts  PksContract[]
+  assets        Asset[]
+  mutationsFrom AssetMutation[]      @relation("MutationFromSite")
+  mutationsTo   AssetMutation[]      @relation("MutationToSite")
+  invoices      Invoice[]
+
+  @@index([primaryPicId])
+  @@index([regionId])
+  @@index([isActive])
+  @@index([isArea])
+}
+
+model Building {
+  id          String    @id @default(uuid(7))
+  siteId      String
+  name        String
+  floorCount  Int?
+  totalAreaM2 Decimal?  @db.Decimal(12, 2)
+  totalSeats  Int?
+  isActive    Boolean   @default(true)
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  site         Site                  @relation(fields: [siteId], references: [id])
+  rooms        Room[]
+  utilizations BuildingUtilization[]
+  pksContracts PksContract[]
+
+  @@unique([siteId, name])
+  @@index([siteId])
+}
+
+model Room {
+  id           String   @id @default(uuid(7))
+  buildingId   String
+  name         String
+  floorLabel   String?
+  areaM2       Decimal? @db.Decimal(10, 2)
+  seatCapacity Int?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  building Building      @relation(fields: [buildingId], references: [id])
+  bookings RoomBooking[]
+
+  @@unique([buildingId, name])
+  @@index([buildingId])
+}
+
+model Asset {
+  id                  String      @id @default(uuid(7))
+  assetTag            String      @unique
+  name                String
+  category            String?
+  brand               String?
+  model               String?
+  serialNumber        String?
+  value               Decimal?    @db.Decimal(18, 2)
+  source              String?
+  acquiredAt          DateTime?   @db.Date
+  acquisitionReportId String?
+  currentSiteId       String?
+  currentLocation     String?
+  status              AssetStatus @default(ACTIVE)
+  deletedAt           DateTime?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  acquisitionReport MonthlyReport?     @relation("AssetAcquisitions", fields: [acquisitionReportId], references: [id])
+  currentSite       Site?              @relation(fields: [currentSiteId], references: [id])
+  mutations         AssetMutation[]
+  acquisitions      AssetAcquisition[]
+
+  @@index([currentSiteId])
+  @@index([status])
+  @@index([acquisitionReportId])
+}
+
+model AssetMutation {
+  id              String          @id @default(uuid(7))
+  assetId         String?
+  areaWilayah     String?
+  periodeLabel    String?
+  gedungName      String?
+  assetTagInput   String?
+  mutationDate    DateTime?       @db.Date
+  fromSiteId      String?
+  fromLocation    String?
+  toSiteId        String?
+  toLocation      String?
+  valueAtMutation Decimal?        @db.Decimal(18, 2)
+  reason          String?
+  effectiveDate   DateTime?       @db.Date
+  status          WorkStatus?     @default(DRAFT)
+  notes           String?
+  reportId        String?
+  picName         String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  asset    Asset?         @relation(fields: [assetId], references: [id])
+  fromSite Site?          @relation("MutationFromSite", fields: [fromSiteId], references: [id])
+  toSite   Site?          @relation("MutationToSite", fields: [toSiteId], references: [id])
+  report   MonthlyReport? @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([assetId])
+  @@index([fromSiteId])
+  @@index([toSiteId])
+  @@index([reportId])
+}
+
+/// Konfigurasi referensi dinamis (padanan sheet 00_MASTER + dropdown inline)
+model RefOption {
+  id        String   @id @default(uuid(7))
+  category  String
+  value     String
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([category, value])
+  @@index([category, isActive])
+}
+
+// ============================================================
+// WORKFLOW LAPORAN BULANAN
+// ============================================================
+
+model MonthlyReport {
+  id            String       @id @default(uuid(7))
+  siteId        String
+  periodYear    Int
+  periodMonth   Int
+  status        ReportStatus @default(DRAFT)
+  submittedById String?
+  submittedAt   DateTime?
+  reviewedById  String?
+  reviewedAt    DateTime?
+  reviewNote    String?
+  lockedAt      DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  site        Site  @relation(fields: [siteId], references: [id])
+  submittedBy User? @relation("ReportSubmitter", fields: [submittedById], references: [id])
+  reviewedBy  User? @relation("ReportReviewer", fields: [reviewedById], references: [id])
+
+  statusLogs             ReportStatusLog[]
+  attachments            Attachment[]
+  utilizations           BuildingUtilization[]
+  rkapProjects           RkapProjectEntry[]
+  buildingMandatories    BuildingMandatoryEntry[]
+  maintenanceWorks       MaintenanceWork[]
+  nearMissIncidents      NearMissIncident[]
+  utilityUsages          UtilityUsage[]
+  gensetUsages           GensetUsage[]
+  vehicleFuelUsages      VehicleFuelUsage[]
+  materialReplacements   MaterialReplacement[]
+  roomBookings           RoomBooking[]
+  churnRisks             ChurnRisk[]
+  securityHeadcounts     SecurityHeadcount[]
+  activeServices         ActiveServiceEntry[]
+  invoices               Invoice[]
+  employeeCounts         EmployeeCountEntry[]
+  pettyCashExpenses      PettyCashExpense[]
+  budgetAbsorptions      BudgetAbsorption[]
+  assetAcquisitions      AssetAcquisition[]
+  newCapexProposals      NewCapexProposal[]
+  inventoryVerifications InventoryVerification[]
+  assetMutations         AssetMutation[]
+  acquiredAssets         Asset[]                 @relation("AssetAcquisitions")
+  // Area-specific sections (Area 1 & 2 reports only)
+  areaLayananEntries         AreaLayananEntry[]
+  areaIdleSeatEntries        AreaIdleSeatEntry[]
+  areaSdmEntries             AreaSdmEntry[]
+  areaMaintenanceEntries     AreaMaintenanceEntry[]
+  areaVehicleLogEntries      AreaVehicleLogEntry[]
+  areaMandatoryCostEntries   AreaMandatoryCostEntry[]
+  areaWaterConsumptionEntries AreaWaterConsumptionEntry[]
+  // Wilayah 1 (Area 1 / Medan) specific section
+  invoiceFinancialEntries    InvoiceFinancialEntry[]
+
+  @@unique([siteId, periodYear, periodMonth])
+  @@index([status])
+  @@index([periodYear, periodMonth])
+  @@index([submittedById])
+  @@index([reviewedById])
+}
+
+model ReportStatusLog {
+  id         String        @id @default(uuid(7))
+  reportId   String
+  fromStatus ReportStatus?
+  toStatus   ReportStatus
+  actedById  String?
+  note       String?
+  createdAt  DateTime      @default(now())
+
+  report  MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  actedBy User?         @relation(fields: [actedById], references: [id])
+
+  @@index([reportId, createdAt])
+  @@index([actedById])
+}
+
+model Attachment {
+  id           String   @id @default(uuid(7))
+  reportId     String?
+  section      String?
+  fileName     String
+  mimeType     String
+  sizeBytes    BigInt
+  storageKey   String   @unique
+  uploadedById String
+  createdAt    DateTime @default(now())
+
+  report     MonthlyReport? @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  uploadedBy User           @relation(fields: [uploadedById], references: [id])
+
+  @@index([reportId])
+}
+
+// ============================================================
+// SECTION LAPORAN — konvensi kolom: report_id FK CASCADE,
+// notes?, createdAt/updatedAt. Kolom "PIC" pada Excel
+// dipetakan ke MonthlyReport.submittedBy / assignment User↔Site,
+// bukan FK per baris (nilai Excel lama berupa teks bebas).
+// ============================================================
+
+model PksContract {
+  id         String    @id @default(uuid(7))
+  siteId     String
+  buildingId String?
+  contractNo String?
+  jenisPks   String?
+  startDate  DateTime? @db.Date
+  endDate    DateTime  @db.Date
+  notes      String?
+  picUserId  String?
+  deletedAt  DateTime?
+  picName    String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  site     Site      @relation(fields: [siteId], references: [id])
+  building Building? @relation(fields: [buildingId], references: [id])
+  pic      User?     @relation(fields: [picUserId], references: [id])
+
+  @@index([siteId])
+  @@index([buildingId])
+  @@index([endDate])
+}
+
+model BuildingUtilization {
+  id           String   @id @default(uuid(7))
+  reportId     String
+  buildingId   String?
+  periodeLabel String?
+  areaWilayah  String?
+  gedungName   String?
+  statusGedung String?
+  jumlahLayanan Int?
+  totalAreaM2  Decimal? @db.Decimal(12, 2)
+  usedAreaM2   Decimal? @db.Decimal(12, 2)
+  idleAreaM2   Decimal? @db.Decimal(12, 2)
+  totalSeats   Int?
+  usedSeats    Int?
+  idleSeats    Int?
+  utilitasPct  Decimal? @db.Decimal(8, 2)
+  notes        String?
+  picName      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  report   MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  building Building?     @relation(fields: [buildingId], references: [id])
+
+  @@index([reportId])
+  @@index([buildingId])
+}
+
+model RkapProjectEntry {
+  id               String      @id @default(uuid(7))
+  reportId         String
+  areaWilayah      String?
+  periodeLabel     String?
+  gedungName       String?
+  title            String?
+  portfolio        String?
+  jenis            BudgetType?
+  newOrCo          String?
+  capexValue       Decimal?    @db.Decimal(18, 2)
+  jib              String?
+  realizationValue Decimal?    @db.Decimal(18, 2)
+  targetDesc       String?
+  statusSaatIni    String?
+  actionField      String?
+  progressPct      Decimal?    @default(0) @db.Decimal(5, 2)
+  dueDate          DateTime?   @db.Date
+  sisaHari         Int?
+  status           WorkStatus? @default(OPEN)
+  notes            String?
+  picName          String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  report MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([dueDate])
+}
+
+model MaintenanceWork {
+  id               String      @id @default(uuid(7))
+  reportId         String
+  areaWilayah      String?
+  gedungName       String?
+  workDate         DateTime?   @db.Date
+  areaName         String?
+  workCategory     String?
+  frekuensi        String?
+  jadwalRutin      String?
+  realisasiPrev    String?
+  realisasiCurrent String?
+  rencanaNext      String?
+  detail           String?
+  plannedDate      DateTime?   @db.Date
+  vendorName       String?
+  estimatedCost    Decimal?    @db.Decimal(18, 2)
+  status           WorkStatus? @default(OPEN)
+  completedAt      DateTime?   @db.Date
+  notes            String?
+  picName          String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  report MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([workCategory])
+  @@index([status])
+}
+
+model NearMissIncident {
+  id                   String         @id @default(uuid(7))
+  reportId             String
+  areaWilayah          String?
+  gedungName           String?
+  tanggalKejadian      String?
+  occurredAt           DateTime?      @db.Date
+  locationDesc         String?
+  description          String?
+  category             String?
+  severity             SeverityLevel?
+  initialAction        String?
+  rootCause            String?
+  correctiveAction     String?
+  targetResolutionDate DateTime?      @db.Date
+  closedAt             DateTime?      @db.Date
+  status               WorkStatus?    @default(OPEN)
+  notes                String?
+  picName              String?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  report MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([severity])
+  @@index([status])
+}
+
+model BuildingMandatoryEntry {
+  id           String   @id @default(uuid(7))
+  reportId     String
+  areaWilayah  String?
+  periodeLabel String?
+  gedungName   String?
+  jenisBeban   String?
+  statusPks    String?
+  docRef       String?
+  activePeriod String?
+  mitra        String?
+  lokasiMitra  String?
+  accrueValue  Decimal? @db.Decimal(18, 2)
+  notes        String?
+  picName      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  report MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+}
+
+model UtilityUsage {
+  id           String      @id @default(uuid(7))
+  reportId     String
+  type         UtilityType
+  periodeLabel String?
+  areaWilayah  String?
+  gedungName   String?
+  meterNo      String?
+  usageValue   Decimal?    @default(0) @db.Decimal(14, 2)
+  billAmount   Decimal?    @db.Decimal(18, 2)
+  meterPrev    Decimal?    @db.Decimal(14, 2)
+  meterCurr    Decimal?    @db.Decimal(14, 2)
+  notes        String?
+  picName      String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  report MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([type])
+}
+
+model GensetUsage {
+  id             String   @id @default(uuid(7))
+  reportId       String
+  periodeLabel   String?
+  areaWilayah    String?
+  gedungName     String?
+  gensetCode     String?
+  usageLiters    Decimal? @default(0) @db.Decimal(12, 2)
+  operatingHours Decimal? @db.Decimal(10, 2)
+  refillQty      Decimal? @db.Decimal(12, 2)
+  pricePerLiter  Decimal? @db.Decimal(14, 2)
+  totalBiaya     Decimal? @db.Decimal(18, 2)
+  notes          String?
+  picName        String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  report MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+}
+
+model VehicleFuelUsage {
+  id                    String    @id @default(uuid(7))
+  reportId              String
+  periodeLabel          String?
+  areaWilayah           String?
+  gedungName            String?
+  // Kolom baru sesuai Excel Sheet 2 "Laporan 2026"
+  tgl                   DateTime? @db.Date
+  nama                  String?
+  nopol                 String?
+  area                  String?
+  tujuan                String?
+  dept                  String?
+  datang                String?
+  pergi                 String?
+  pulang                String?
+  jamKerjaMenit         Decimal?  @default(540) @db.Decimal(10, 2)
+  durasiPerjalananMenit Decimal?  @db.Decimal(10, 2)
+  efektifKerjaJam       Decimal?  @db.Decimal(10, 2)
+  durasiPerjalananJam   Decimal?  @db.Decimal(10, 2)
+  lamaA                 String?
+  pic                   String?
+  kmAwal                Decimal?  @db.Decimal(12, 2)
+  kmAkhir               Decimal?  @db.Decimal(12, 2)
+  jarakTempuh           Decimal?  @db.Decimal(12, 2)
+  jenisBbm              String?
+  pengisianLiter        Decimal?  @db.Decimal(12, 2)
+  hargaBbm              Decimal?  @db.Decimal(14, 2)
+  totalBbm              Decimal?  @db.Decimal(18, 2)
+  penumpang             String?
+  keterangan            String?
+  // Kolom legacy untuk kompatibilitas
+  plateNo               String?
+  vehicleType           String?
+  fuelType              String?
+  liters                Decimal?  @default(0) @db.Decimal(12, 2)
+  odometerStart         Int?
+  odometerEnd           Int?
+  distanceKm            Decimal?  @db.Decimal(12, 2)
+  cost                  Decimal?  @db.Decimal(18, 2)
+  notes                 String?
+  picName               String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  report MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+}
+
+model MaterialReplacement {
+  id            String         @id @default(uuid(7))
+  reportId      String
+  areaWilayah   String?
+  gedungName    String?
+  replacedAt    DateTime?      @db.Date
+  areaName      String?
+  materialName  String?
+  specification String?
+  qty           Decimal?       @default(1) @db.Decimal(12, 2)
+  unit          String?
+  oldCondition  String?
+  reason        String?
+  estimatedCost Decimal?       @db.Decimal(18, 2)
+  status        WorkStatus?    @default(OPEN)
+  notes         String?
+  picName       String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  report MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([materialName])
+}
+
+model RoomBooking {
+  id            String         @id @default(uuid(7))
+  reportId      String
+  areaWilayah   String?
+  gedungName    String?
+  bookingDate   DateTime?      @db.Date
+  roomId        String?
+  roomLabel     String?
+  floorLabel    String?
+  areaM2        Decimal?       @db.Decimal(10, 2)
+  seats         Int?
+  bookerName    String?
+  bookingStatus BookingStatus? @default(BOOKING)
+  notes         String?
+  picName       String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  report MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  room   Room?         @relation(fields: [roomId], references: [id])
+
+  @@index([reportId])
+  @@index([roomId])
+  @@index([bookingStatus])
+}
+
+model ChurnRisk {
+  id                 String            @id @default(uuid(7))
+  reportId           String
+  periodeLabel       String?
+  areaWilayah        String?
+  gedungName         String?
+  customerName       String?
+  serviceName        String?
+  potentialDesc      String?
+  indication         String?
+  impact             String?
+  probability        ProbabilityLevel?
+  actionPlan         String?
+  targetFollowUpDate DateTime?         @db.Date
+  status             WorkStatus?       @default(OPEN)
+  notes              String?
+  picName            String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  report MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([probability])
+}
+
+model SecurityHeadcount {
+  id              String          @id @default(uuid(7))
+  reportId        String
+  periodeLabel    String?
+  areaWilayah     String?
+  gedungName      String?
+  aspect          FacilityAspect? @default(SECURITY)
+  supervisorCount Int             @default(0)
+  memberCount     Int             @default(0)
+  totalCount      Int?
+  mitraName       String?
+  notes           String?
+  picName         String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  report MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+}
+
+model ActiveServiceEntry {
+  id           String   @id @default(uuid(7))
+  reportId     String
+  periodeLabel String?
+  areaWilayah  String?
+  gedungName   String?
+  serviceName  String
+  areaM2       Decimal? @db.Decimal(12, 2)
+  totalSeats   Int?
+  usedSeats    Int?
+  idleSeats    Int?
+  staffCount   Int?
+  notes        String?
+  picName      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  report MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+}
+
+model EmployeeCountEntry {
+  id           String   @id @default(uuid(7))
+  reportId     String
+  periodeLabel String?
+  areaWilayah  String?
+  gedungName   String?
+  unitName     String
+  totalCount   Int      @default(0)
+  activeCount  Int      @default(0)
+  notes        String?
+  picName      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  report MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+}
+
+model Invoice {
+  id                  String     @id @default(uuid(7))
+  sheetKey            String?    @default("open-invoice")
+  invoiceNo           String?
+  vendorName          String?
+  siteId              String
+  reportId            String
+  areaWilayah         String?
+  gedungName          String?
+  serviceType         String?
+  invoicePeriod       String?
+  invoiceDate         DateTime?  @db.Date
+  receivedAt          DateTime?  @db.Date
+  processedAt         DateTime?  @db.Date
+  dueDate             DateTime?  @db.Date
+  paidAt              DateTime?  @db.Date
+  amount              Decimal?   @default(0) @db.Decimal(18, 2)
+  agingDays           Int?
+  processDurationDays Int?
+  paymentDurationDays Int?
+  status              WorkStatus @default(OPEN)
+  issueNotes          String?
+  notes               String?
+  picName             String?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  site   Site          @relation(fields: [siteId], references: [id])
+  report MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([siteId])
+  @@index([reportId])
+  @@index([sheetKey])
+  @@index([status])
+  @@index([dueDate])
+  @@index([invoiceNo])
+}
+
+model PettyCashExpense {
+  id            String       @id @default(uuid(7))
+  reportId      String
+  areaWilayah   String?
+  gedungName    String?
+  spentAt       DateTime?    @db.Date
+  transactionNo String?
+  expenseType   String?
+  description   String?
+  amount        Decimal?     @db.Decimal(18, 2)
+  budgetAmount  Decimal?     @db.Decimal(18, 2)
+  selisih       Decimal?     @db.Decimal(18, 2)
+  status        WorkStatus?  @default(OPEN)
+  notes         String?
+  picName       String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  report MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+}
+
+model BudgetAbsorption {
+  id                  String      @id @default(uuid(7))
+  reportId            String
+  periodeLabel        String?
+  areaWilayah         String?
+  gedungName          String?
+  jenis               BudgetType?
+  categoryName        String?
+  rkapBudget          Decimal?    @db.Decimal(18, 2)
+  realization         Decimal?    @db.Decimal(18, 2)
+  targetAbsorptionPct Decimal?    @db.Decimal(5, 2)
+  sisaBudget          Decimal?    @db.Decimal(18, 2)
+  penyerapanPct       Decimal?    @db.Decimal(5, 2)
+  variancePct         Decimal?    @db.Decimal(5, 2)
+  status              WorkStatus? @default(OPEN)
+  notes               String?
+  picName             String?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  report MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([jenis])
+}
+
+model AssetAcquisition {
+  id            String   @id @default(uuid(7))
+  reportId      String
+  assetId       String
+  areaWilayah   String?
+  periodeLabel  String?
+  gedungName    String?
+  quantity      Int      @default(1)
+  acquiredValue Decimal? @db.Decimal(18, 2)
+  source        String?
+  notes         String?
+  picName       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  report MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  asset  Asset         @relation(fields: [assetId], references: [id])
+
+  @@unique([reportId, assetId])
+  @@index([assetId])
+}
+
+model NewCapexProposal {
+  id                    String      @id @default(uuid(7))
+  reportId              String
+  periodeLabel          String?
+  areaWilayah           String?
+  gedungName            String?
+  proposalYear          Int?
+  capexName             String?
+  category              String?
+  justification         String?
+  qty                   Decimal?    @default(1) @db.Decimal(12, 2)
+  estimatedValue        Decimal?    @db.Decimal(18, 2)
+  rkapBudget            Decimal?    @db.Decimal(18, 2)
+  vendorName            String?
+  procurementTargetDate DateTime?   @db.Date
+  status                WorkStatus? @default(PROPOSED)
+  notes                 String?
+  picName               String?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  report MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([status])
+}
+
+model InventoryVerification {
+  id              String     @id @default(uuid(7))
+  reportId        String
+  periodeLabel    String?
+  areaWilayah     String?
+  gedungName      String?
+  scopeLabel      String?
+  serviceName     String?
+  totalAssets     Int?
+  checkedAssets   Int        @default(0)
+  matchedAssets   Int?
+  unmatchedAssets Int?
+  assetUnchecked  Int?
+  progressPct     Decimal?   @db.Decimal(5, 2)
+  findings        String?
+  checkedAt       DateTime?  @db.Date
+  status          WorkStatus @default(OPEN)
+  notes           String?
+  picName         String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  report MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+}
+
+// ============================================================
+// AUDIT LOG
+// ============================================================
+
+model AuditLog {
+  id         String   @id @default(uuid(7))
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String
+  before     Json?
+  after      Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([createdAt])
+  @@index([entityType, entityId])
+  @@index([actorId])
+}
+
+// ============================================================
+// AREA REPORT SECTIONS (Area 1 & 2 — format khusus)
+// Sheet: all area 2 — Laporan Layanan per Gedung/Divisi
+// ============================================================
+
+model AreaLayananEntry {
+  id           String   @id @default(uuid(7))
+  reportId     String
+  periodeLabel String?
+  areaWilayah  String?
+  gedungName   String?
+  divisi       String?
+  layanan      String?
+  klien        String?
+  luasM2       Decimal? @db.Decimal(12, 2)
+  jumlahSeat   Int?
+  jumlahSdm    Int?
+  lantai       String?
+  notes        String?
+  picName      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  report MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+}
+
+// Sheet: Summary Idle Seat
+model AreaIdleSeatEntry {
+  id           String   @id @default(uuid(7))
+  reportId     String
+  periodeLabel String?
+  areaWilayah  String?
+  gedungName   String?
+  layananName  String?
+  luasM2       Decimal? @db.Decimal(12, 2)
+  jumlahSeat   Int?
+  lantai       String?
+  notes        String?
+  picName      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  report MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+}
+
+// Sheet: Jmh SDM Support Fam — Headcount per Gedung per Jenis Tenaga
+model AreaSdmEntry {
+  id            String   @id @default(uuid(7))
+  reportId      String
+  periodeLabel  String?
+  areaWilayah   String?
+  gedungName    String?
+  jumlahSecurity Int     @default(0)
+  jumlahDriver   Int     @default(0)
+  jumlahMe       Int     @default(0)
+  jumlahMailBoy  Int     @default(0)
+  jumlahCs       Int     @default(0)
+  totalTenaga    Int?
+  notes          String?
+  picName        String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  report MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+}
+
+// Sheet: Kerusakan Sarana kerja
+model AreaMaintenanceEntry {
+  id                 String    @id @default(uuid(7))
+  reportId           String
+  tglKerja           DateTime? @db.Date
+  gedungName         String?
+  lantai             String?
+  jenisKerusakan     String?
+  dikerjakanFam      String?
+  dikerjakanLayanan  String?
+  dikerjakanBmGedung String?
+  dikerjakanVendor   String?
+  tglSelesai         DateTime? @db.Date
+  material           String?
+  jumlahMaterial     Decimal?  @db.Decimal(10, 2)
+  satuan             String?
+  notes              String?
+  picName            String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  report MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([tglKerja])
+}
+
+// Sheet: Lap. Mobil Opr — Log harian kendaraan
+model AreaVehicleLogEntry {
+  id             String    @id @default(uuid(7))
+  reportId       String
+  tglLog         DateTime? @db.Date
+  gedungName     String?
+  namaDriver     String?
+  nopol          String?
+  tujuan         String?
+  dept           String?
+  jamDatang      String?
+  jamPergi       String?
+  jamPulang      String?
+  jamKerjaMenit  Int?
+  durasiMenit    Int?
+  kmAwal         Int?
+  kmAkhir        Int?
+  jarakKm        Decimal?  @db.Decimal(10, 2)
+  jenisBbm       String?
+  literBbm       Decimal?  @db.Decimal(10, 2)
+  penumpang      String?
+  notes          String?
+  picName        String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  report MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([tglLog])
+}
+
+// Sheet: Biaya Mandatory — Biaya per gedung per jenis per bulan
+model AreaMandatoryCostEntry {
+  id           String   @id @default(uuid(7))
+  reportId     String
+  periodeLabel String?
+  areaWilayah  String?
+  gedungName   String?
+  komponen     String?
+  totalAmount  Decimal? @db.Decimal(18, 2)
+  statusPks    String?
+  masaAktifPks String?
+  jenisBeban   String?
+  jan          Decimal? @db.Decimal(18, 2)
+  feb          Decimal? @db.Decimal(18, 2)
+  mar          Decimal? @db.Decimal(18, 2)
+  apr          Decimal? @db.Decimal(18, 2)
+  may          Decimal? @db.Decimal(18, 2)
+  jun          Decimal? @db.Decimal(18, 2)
+  jul          Decimal? @db.Decimal(18, 2)
+  aug          Decimal? @db.Decimal(18, 2)
+  sep          Decimal? @db.Decimal(18, 2)
+  oct          Decimal? @db.Decimal(18, 2)
+  nov          Decimal? @db.Decimal(18, 2)
+  dec          Decimal? @db.Decimal(18, 2)
+  grandTotal   Decimal? @db.Decimal(18, 2)
+  notes        String?
+  picName      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  report MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([gedungName])
+}
+
+// Sheet: Pemakaian Air Minum — BA Rekon air galon
+model AreaWaterConsumptionEntry {
+  id               String   @id @default(uuid(7))
+  reportId         String
+  periodeLabel     String?
+  areaWilayah      String?
+  siteName         String?
+  permintaanGalon  Int?
+  realisasiGalon   Int?
+  hargaSatuan      Decimal? @db.Decimal(12, 2)
+  totalPerBulan    Decimal? @db.Decimal(18, 2)
+  totalRealisasi   Decimal? @db.Decimal(18, 2)
+  keterangan       String?
+  notes            String?
+  picName          String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  report MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+}
+
+// Sheet: Status & Utilisasi Gedung — INVOICE & FAINANCIAL (Wilayah 1 / Area 1 Medan)
+model InvoiceFinancialEntry {
+  id           String   @id @default(uuid(7))
+  reportId     String
+  no           Int?
+  uraian       String?
+  namaTagihan  String?
+  nilaiTagihan Decimal? @db.Decimal(18, 2)
+  status       String?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  report MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+}
