@@ -157,20 +157,31 @@ export default async function ReportDetailPage({
   });
   if (!report) notFound();
 
-  const accessibleSiteIds = await getAccessibleSiteIds(user);
+  // Paralelkan semua query yang tidak saling bergantung setelah report ditemukan
+  const [accessibleSiteIds, access, siteWithRegion, filledMap, logs] = await Promise.all([
+    getAccessibleSiteIds(user),
+    canEditReport(id, user),
+    db.site.findUnique({
+      where: { id: report.siteId },
+      include: { region: { select: { name: true } } },
+    }),
+    getReportSectionStatusMap(id, false, report.site.id),
+    db.reportStatusLog.findMany({
+      where: { reportId: id },
+      orderBy: { createdAt: "desc" },
+      take: 6,
+      include: { actedBy: { select: { name: true } } },
+    }),
+  ]);
+
   if ((user.roleCode === "PIC" || user.roleCode === "SUPPORT") && !accessibleSiteIds.includes(report.siteId)) {
     notFound();
   }
 
-  const access = await canEditReport(id, user);
   const editable = access.ok;
   const canReview = user.roleCode === "SUPER_ADMIN" || user.roleCode === "ADMIN";
 
   // Get user's area/region name from the site's region for auto-fill
-  const siteWithRegion = await db.site.findUnique({
-    where: { id: report.siteId },
-    include: { region: { select: { name: true } } },
-  });
   const userArea = siteWithRegion?.region?.name ?? undefined;
 
   const currentSections = SECTIONS;
@@ -183,16 +194,8 @@ export default async function ReportDetailPage({
     ? (tab as string)
     : currentTabs[0].key;
 
-  const filledMap = await getReportSectionStatusMap(id, false, report.site.id);
   const relevantKeys = new Set(currentTabs.map((t) => t.key));
   const filled = [...filledMap.entries()].filter(([k, v]) => relevantKeys.has(k) && v).length;
-
-  const logs = await db.reportStatusLog.findMany({
-    where: { reportId: id },
-    orderBy: { createdAt: "desc" },
-    take: 6,
-    include: { actedBy: { select: { name: true } } },
-  });
 
   return (
     <div className="space-y-5">

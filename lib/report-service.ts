@@ -1,11 +1,12 @@
 import "server-only";
+import { cache } from "react";
 import { db } from "@/lib/db";
 import type { SessionUser } from "@/lib/auth";
 import { getSection } from "@/lib/section-config";
 
 export const EDITABLE_STATUSES = ["DRAFT", "NEEDS_REVISION"] as const;
 
-export async function getAccessibleSiteIds(user: SessionUser): Promise<string[]> {
+export const getAccessibleSiteIds = cache(async (user: SessionUser): Promise<string[]> => {
   if (user.roleCode !== "PIC" && user.roleCode !== "SUPPORT") {
     const sites = await db.site.findMany({ select: { id: true } });
     return sites.map((s) => s.id);
@@ -33,7 +34,7 @@ export async function getAccessibleSiteIds(user: SessionUser): Promise<string[]>
   }
 
   return [...assignedSiteIds];
-}
+});
 
 export async function canEditReport(
   reportId: string,
