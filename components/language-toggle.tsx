@@ -1,21 +1,24 @@
 "use client";
 
 import { useTranslation } from "@/lib/i18n/language-context";
-import { Globe } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 export default function LanguageToggle({ className = "" }: { className?: string }) {
-  const { locale, setLocale } = useTranslation();
+  const { locale, setLocale, isPending } = useTranslation();
 
   return (
     <div
-      className={`inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50/80 p-0.5 text-xs font-medium shadow-xs ${className}`}
+      className={`inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50/80 p-0.5 text-xs font-medium shadow-xs transition-opacity ${className} ${
+        isPending ? "opacity-75" : ""
+      }`}
       role="group"
       aria-label="Language selector"
     >
       <button
         type="button"
+        disabled={isPending}
         onClick={() => setLocale("id")}
-        className={`flex items-center gap-1 rounded-md px-2 py-1 transition-all ${
+        className={`flex items-center gap-1 rounded-md px-2 py-1 transition-all cursor-pointer ${
           locale === "id"
             ? "bg-white text-slate-900 shadow-xs font-semibold"
             : "text-slate-500 hover:text-slate-800"
@@ -28,8 +31,9 @@ export default function LanguageToggle({ className = "" }: { className?: string 
 
       <button
         type="button"
+        disabled={isPending}
         onClick={() => setLocale("en")}
-        className={`flex items-center gap-1 rounded-md px-2 py-1 transition-all ${
+        className={`flex items-center gap-1 rounded-md px-2 py-1 transition-all cursor-pointer ${
           locale === "en"
             ? "bg-white text-slate-900 shadow-xs font-semibold"
             : "text-slate-500 hover:text-slate-800"
@@ -39,6 +43,8 @@ export default function LanguageToggle({ className = "" }: { className?: string 
         <span>🇬🇧</span>
         <span>EN</span>
       </button>
+
+      {isPending && <Loader2 size={12} className="animate-spin text-slate-400 mr-1" />}
     </div>
   );
 }
