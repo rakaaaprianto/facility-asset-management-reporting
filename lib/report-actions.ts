@@ -385,7 +385,7 @@ export async function submitReport(formData: FormData): Promise<void> {
 
   await db.monthlyReport.update({
     where: { id: reportId },
-    data: { status: "SUBMITTED", submittedAt: new Date() },
+    data: { status: "SUBMITTED", submittedAt: new Date(), submittedById: user.id },
   });
   await db.reportStatusLog.create({
     data: {

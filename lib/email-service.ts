@@ -26,7 +26,7 @@ export async function sendEmail({
     return { success: false, error: "No recipients specified" };
   }
 
-  const configuredFrom = process.env.EMAIL_FROM || "Infomedia Asset Monthly Report <onboarding@resend.dev>";
+  const configuredFrom = process.env.EMAIL_FROM || "Infomedia AMRS <notifications@monthly-reportfam.web.id>";
   const defaultFrom = from || configuredFrom;
 
   // -------------------------------------------------------------
@@ -141,6 +141,9 @@ export async function sendEmail({
           user: process.env.EMAIL_SMTP_USER,
           pass: process.env.EMAIL_SMTP_PASS,
         },
+        connectionTimeout: 5000,
+        greetingTimeout: 5000,
+        socketTimeout: 10000,
         tls: {
           rejectUnauthorized: false,
         },
@@ -192,30 +195,48 @@ export async function sendRevisionNotification(reportId: string, note: string): 
 
     const emailSet = new Set<string>();
 
-    // 1. Submitter email
+    // 1. Submitter email directly from report relation
     if (report.submittedBy?.email) {
-      emailSet.add(report.submittedBy.email);
+      emailSet.add(report.submittedBy.email.trim().toLowerCase());
     }
 
-    // 2. Assigned PICs on this site
-    for (const a of report.site.users) {
-      if (a.user.role?.code === "PIC" && a.user.email) {
-        emailSet.add(a.user.email);
+    // 2. Fallback: find who submitted the report from ReportStatusLog if submittedBy is not linked
+    if (emailSet.size === 0) {
+      const submitLog = await db.reportStatusLog.findFirst({
+        where: { reportId, toStatus: "SUBMITTED" },
+        orderBy: { createdAt: "desc" },
+        include: { actedBy: { select: { email: true } } },
+      });
+      if (submitLog?.actedBy?.email) {
+        emailSet.add(submitLog.actedBy.email.trim().toLowerCase());
       }
     }
 
-    // 3. Fallback: any user assigned to this site
+    // 3. Assigned PICs and SUPPORT engineers for this site
+    for (const a of report.site.users) {
+      const roleCode = a.user.role?.code;
+      if ((roleCode === "PIC" || roleCode === "SUPPORT") && a.user.email) {
+        emailSet.add(a.user.email.trim().toLowerCase());
+      }
+    }
+
+    // 4. Fallback: any assigned user on this site
     if (emailSet.size === 0) {
       for (const a of report.site.users) {
-        if (a.user.email) emailSet.add(a.user.email);
+        if (a.user.email) {
+          emailSet.add(a.user.email.trim().toLowerCase());
+        }
       }
     }
 
-    const recipientEmails = Array.from(emailSet);
-    console.log(`[EMAIL] Revision email recipients for ${report.site.name}:`, recipientEmails);
+    // Filter valid email formats
+    const recipientEmails = Array.from(emailSet).filter((email) =>
+      /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)
+    );
+    console.log(`[EMAIL] 📨 Revision email recipients for ${report.site.name}:`, recipientEmails);
 
     if (recipientEmails.length === 0) {
-      console.warn("[EMAIL] No valid recipient email found for report:", reportId);
+      console.warn(`[EMAIL] ⚠️ No valid recipient email found for report ${reportId} (Site: ${report.site.name})`);
       return;
     }
 
