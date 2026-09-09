@@ -4,6 +4,7 @@ export type SendEmailOptions = {
   to: string | string[];
   subject: string;
   html: string;
+  text?: string;
   from?: string;
 };
 
@@ -18,6 +19,7 @@ export async function sendEmail({
   to,
   subject,
   html,
+  text,
   from,
 }: SendEmailOptions): Promise<{ success: boolean; messageId?: string; error?: string }> {
   const recipients = Array.isArray(to) ? to : [to];
@@ -51,6 +53,7 @@ export async function sendEmail({
               to: recipient,
               subject,
               html,
+              ...(text ? { text } : {}),
             }),
           });
 
@@ -106,6 +109,7 @@ export async function sendEmail({
           to: validRecipients.map((email) => ({ email })),
           subject,
           htmlContent: html,
+          ...(text ? { textContent: text } : {}),
         }),
       });
 
@@ -154,6 +158,7 @@ export async function sendEmail({
         to: validRecipients.join(", "),
         subject,
         html,
+        ...(text ? { text } : {}),
       });
 
       console.log(`[EMAIL] ✅ Email successfully sent via SMTP! ID: ${info.messageId}`);
@@ -243,10 +248,28 @@ export async function sendRevisionNotification(reportId: string, note: string): 
     const siteName = report.site.name;
     const period = `${report.periodMonth}/${report.periodYear}`;
     const appUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
+    const reportUrl = `${appUrl}/reports/${reportId}`;
+
+    const plainText = [
+      `[Revisi Diminta] Laporan ${siteName} — Periode ${period}`,
+      "",
+      "Halo Tim PIC,",
+      `Laporan bulanan untuk ${siteName} periode ${period} telah direview oleh HQ Admin dan memerlukan perbaikan.`,
+      "",
+      "Catatan Revisi dari Admin:",
+      note || "Mohon periksa kembali kelengkapan data laporan.",
+      "",
+      "Silakan akses sistem pelaporan dan perbaiki data melalui tautan berikut:",
+      reportUrl,
+      "",
+      "--",
+      "Pesan ini dikirim otomatis oleh Sistem AMRS Infomedia Nusantara.",
+    ].join("\n");
 
     await sendEmail({
       to: recipientEmails,
       subject: `[Revisi Diminta] Laporan ${siteName} — Periode ${period}`,
+      text: plainText,
       html: `
         <div style="font-family:'Segoe UI',Roboto,-apple-system,BlinkMacSystemFont,sans-serif;max-width:600px;margin:0 auto;background:#f8fafc;padding:24px;border-radius:12px">
           <div style="background:#E31E2D;padding:20px 24px;border-radius:8px 8px 0 0;text-align:left">
