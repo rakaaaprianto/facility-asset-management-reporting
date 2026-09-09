@@ -3,6 +3,8 @@
 import { useState, type ReactNode } from "react";
 import { Menu, X, Bell } from "lucide-react";
 import Sidebar, { type MenuItem } from "@/components/sidebar";
+import LanguageToggle from "@/components/language-toggle";
+import { useTranslation } from "@/lib/i18n/language-context";
 
 export default function AppShell({
   items,
@@ -16,6 +18,7 @@ export default function AppShell({
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const { t } = useTranslation();
 
   /* Avatar initials */
   const initials = userLine1
@@ -76,18 +79,19 @@ export default function AppShell({
 
             <div className="min-w-0">
               <p className="truncate text-sm font-bold text-slate-900 tracking-tight">
-                Facility and Asset Management Reporting
+                {t.nav.title}
               </p>
               <p className="hidden text-[11px] text-slate-400 sm:block font-medium">
-                Infomedia Nusantara — Monthly Report System
+                {t.nav.subtitle}
               </p>
             </div>
           </div>
 
-          {/* Right: user info */}
-          <div className="flex items-center gap-3">
+          {/* Right: user info and language switcher */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <LanguageToggle />
             <button
-              aria-label="Notifikasi"
+              aria-label={t.common.notifications}
               className="hidden cursor-pointer rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 sm:flex"
             >
               <Bell size={18} />

@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
 import { ArrowLeft, FileDown } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -13,12 +14,13 @@ import {
   loadKnownInvoices,
   getAccessibleSiteIds,
 } from "@/lib/report-service";
-import { SECTIONS, MONTH_NAMES_ID, getSection, getSectionsForReport, getSectionsForWilayah1, isWilayah1, WILAYAH1_SHEETS, WILAYAH1_SECTIONS } from "@/lib/section-config";
-import { Card, Table } from "@/components/ui";
+import { SECTIONS, MONTH_NAMES_ID, getSection } from "@/lib/section-config";
+import { Card } from "@/components/ui";
 import SectionPanel from "@/components/report/section-panel";
 import { ReviewForm, SubmitReportForm } from "@/components/report/workflow-buttons";
 import DeleteReportButton from "@/components/report/delete-report-button";
 import PksPanel from "@/components/report/pks-panel";
+import { getDictionary, getMonthName, getSectionTitle, type Locale } from "@/lib/i18n";
 
 export const metadata = { title: "Detail Laporan" };
 
@@ -149,7 +151,14 @@ export default async function ReportDetailPage({
 }) {
   const { id } = await params;
   const { tab } = await searchParams;
-  const user = await requireUser();
+
+  const [user, cookieStore] = await Promise.all([
+    requireUser(),
+    cookies(),
+  ]);
+
+  const locale: Locale = cookieStore.get("app_locale")?.value === "en" ? "en" : "id";
+  const t = getDictionary(locale);
 
   const report = await db.monthlyReport.findUnique({
     where: { id },
@@ -188,8 +197,11 @@ export default async function ReportDetailPage({
 
   const currentSections = SECTIONS;
   const currentTabs = [
-    ...currentSections.map((s) => ({ key: s.key, title: s.title })),
-    { key: "pks", title: "Kontrak PKS" },
+    ...currentSections.map((s) => ({
+      key: s.key,
+      title: getSectionTitle(s.key, s.title, locale),
+    })),
+    { key: "pks", title: getSectionTitle("pks", "Kontrak PKS", locale) },
   ];
 
   const activeKey = currentTabs.some((t) => t.key === tab)
@@ -199,10 +211,12 @@ export default async function ReportDetailPage({
   const relevantKeys = new Set(currentTabs.map((t) => t.key));
   const filled = [...filledMap.entries()].filter(([k, v]) => relevantKeys.has(k) && v).length;
 
+  const monthName = getMonthName(report.periodMonth, locale);
+
   return (
     <div className="space-y-5">
       <Link href="/reports" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-brand-600">
-        <ArrowLeft size={15} /> Kembali ke daftar
+        <ArrowLeft size={15} /> {t.common.backToList}
       </Link>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -211,7 +225,7 @@ export default async function ReportDetailPage({
             {report.site.code} — {report.site.name}
           </h1>
           <p className="text-sm text-slate-500">
-            Periode {MONTH_NAMES_ID[report.periodMonth - 1]} {report.periodYear}
+            {t.common.period} {monthName} {report.periodYear}
           </p>
         </div>
         <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
@@ -219,11 +233,15 @@ export default async function ReportDetailPage({
             href={`/api/reports/${id}/export`}
             className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium hover:bg-slate-50"
           >
-            <FileDown size={15} /> Export Excel
+            <FileDown size={15} /> {t.common.exportExcel}
           </a>
           <DeleteReportButton
             reportId={report.id}
-            confirmText={`Hapus laporan ${report.site.code} periode ${MONTH_NAMES_ID[report.periodMonth - 1]} ${report.periodYear}? Semua data section ikut terhapus dan tidak dapat dikembalikan.`}
+            confirmText={
+              locale === "en"
+                ? `Delete report for ${report.site.code} (${monthName} ${report.periodYear})? All section data will be deleted and cannot be recovered.`
+                : `Hapus laporan ${report.site.code} periode ${monthName} ${report.periodYear}? Semua data section ikut terhapus dan tidak dapat dikembalikan.`
+            }
             className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-white px-3.5 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
           />
         </div>
@@ -235,14 +253,14 @@ export default async function ReportDetailPage({
             <span className="text-lg leading-none">✏️</span>
             <div>
               <p className="text-sm font-semibold text-red-900">
-                Laporan Memerlukan Revisi
+                {t.reports.needsRevisionBanner}
               </p>
               <p className="mt-1 text-sm font-medium text-red-800 whitespace-pre-wrap">
-                Catatan Admin: &ldquo;{latestRevisionLog.note}&rdquo;
+                {t.reports.adminNote}: &ldquo;{latestRevisionLog.note}&rdquo;
               </p>
               <p className="mt-1 text-xs text-red-600">
-                Diminta oleh {latestRevisionLog.actedBy?.name ?? "Admin"} pada{" "}
-                {new Date(latestRevisionLog.createdAt).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })} WIB
+                {t.reports.requestedBy} {latestRevisionLog.actedBy?.name ?? "Admin"} {t.reports.onDate}{" "}
+                {new Date(latestRevisionLog.createdAt).toLocaleString(locale === "en" ? "en-US" : "id-ID", { timeZone: "Asia/Jakarta" })} WIB
               </p>
             </div>
           </div>
@@ -253,11 +271,11 @@ export default async function ReportDetailPage({
         <Card className="p-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <p className="text-sm text-slate-600">
-              Progress pengisian:{" "}
+              {t.reports.fillProgress}:{" "}
               <span className="font-semibold text-brand-700">
                 {filled}/{currentTabs.length}
               </span>{" "}
-              section terisi
+              {t.reports.sectionsFilled}
             </p>
             {editable ? <SubmitReportForm reportId={id} /> : null}
           </div>
@@ -271,12 +289,12 @@ export default async function ReportDetailPage({
               {logs.map((l) => (
                 <li key={l.id} className="flex flex-wrap items-baseline gap-1.5">
                   <span className="font-medium text-slate-700">
-                    {new Date(l.createdAt).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })} WIB
+                    {new Date(l.createdAt).toLocaleString(locale === "en" ? "en-US" : "id-ID", { timeZone: "Asia/Jakarta" })} WIB
                   </span>
-                  <span>— oleh <span className="font-medium text-slate-800">{l.actedBy?.name ?? "sistem"}</span></span>
+                  <span>— {locale === "en" ? "by" : "oleh"} <span className="font-medium text-slate-800">{l.actedBy?.name ?? (locale === "en" ? "system" : "sistem")}</span></span>
                   {l.note ? (
                     <span className="rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 border border-amber-200">
-                      Catatan: &ldquo;{l.note}&rdquo;
+                      {t.common.notes}: &ldquo;{l.note}&rdquo;
                     </span>
                   ) : null}
                 </li>
@@ -288,13 +306,13 @@ export default async function ReportDetailPage({
 
       <Card>
         <div className="flex gap-1 overflow-x-auto border-b border-slate-100 px-3 pt-2">
-          {currentTabs.map((t) => {
-            const done = filledMap.get(t.key);
-            const isActive = t.key === activeKey;
+          {currentTabs.map((tabItem) => {
+            const done = filledMap.get(tabItem.key);
+            const isActive = tabItem.key === activeKey;
             return (
               <Link
-                key={t.key}
-                href={`/reports/${id}?tab=${t.key}`}
+                key={tabItem.key}
+                href={`/reports/${id}?tab=${tabItem.key}`}
                 className={
                   isActive
                     ? "whitespace-nowrap rounded-t-lg px-3 py-2 text-sm font-semibold text-brand-700 shadow-[inset_0_-2px_0_0_var(--brand-600)]"
@@ -302,7 +320,7 @@ export default async function ReportDetailPage({
                 }
               >
                 {done ? <span className="mr-1 text-emerald-600">✓</span> : null}
-                {t.title}
+                {tabItem.title}
               </Link>
             );
           })}
@@ -319,7 +337,7 @@ export default async function ReportDetailPage({
                 sectionKey={activeKey}
                 editable={editable}
                 siteName={`${report.site.code} — ${report.site.name}`}
-                periodLabel={`${MONTH_NAMES_ID[report.periodMonth - 1]} ${report.periodYear}`}
+                periodLabel={`${monthName} ${report.periodYear}`}
                 userArea={userArea}
               />
             )}

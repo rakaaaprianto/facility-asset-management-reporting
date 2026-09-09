@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
@@ -14,27 +15,21 @@ import {
   Building2,
   Package,
   FileText,
-  TrendingUp,
   ArrowRight,
   Clock,
 } from "lucide-react";
+import { getDictionary, getShortMonthName, type Locale } from "@/lib/i18n";
 
 export const metadata = { title: "Dashboard — Infomedia AMRS" };
 
-const STATUS_LABEL: Record<string, string> = {
-  DRAFT: "Draft",
-  SUBMITTED: "Menunggu",
-  APPROVED: "Disetujui",
-  NEEDS_REVISION: "Revisi",
-};
-
-const MONTH_NAMES = [
-  "", "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
-  "Jul", "Agu", "Sep", "Okt", "Nov", "Des",
-];
-
 export default async function DashboardPage() {
-  const user = await requireUser();
+  const [user, cookieStore] = await Promise.all([
+    requireUser(),
+    cookies(),
+  ]);
+
+  const locale: Locale = cookieStore.get("app_locale")?.value === "en" ? "en" : "id";
+  const t = getDictionary(locale);
 
   const isFieldUser = user.roleCode === "PIC" || user.roleCode === "SUPPORT";
 
@@ -61,25 +56,25 @@ export default async function DashboardPage() {
 
   const stats = [
     {
-      label: "Site Terdaftar",
+      label: t.dashboard.registeredSites,
       value: totalSites,
       icon: Building2,
       color: "brand",
-      desc: "Lokasi aktif",
+      desc: t.dashboard.activeLocations,
     },
     {
-      label: "Aset Terdata",
+      label: t.dashboard.recordedAssets,
       value: totalAssets,
       icon: Package,
       color: "emerald",
-      desc: "Total aset",
+      desc: t.dashboard.totalAssets,
     },
     {
-      label: isFieldUser ? "Laporan Saya" : "Total Laporan",
+      label: isFieldUser ? t.dashboard.myReports : t.dashboard.totalReports,
       value: reportCount,
       icon: FileText,
       color: "amber",
-      desc: "Semua periode",
+      desc: t.dashboard.allPeriods,
     },
   ];
 
@@ -101,22 +96,29 @@ export default async function DashboardPage() {
     },
   };
 
+  const dateStr = new Date().toLocaleDateString(locale === "en" ? "en-US" : "id-ID", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
   return (
     <div className="space-y-6">
       {/* ── Page Title ──────────────────────────────────────────────── */}
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">
-            Selamat datang,{" "}
+            {t.common.welcome},{" "}
             <span style={{ color: "var(--brand-600)" }}>{user.name.split(" ")[0]}</span>
           </h1>
           <p className="mt-0.5 text-sm text-slate-500">
-            Ringkasan aktivitas pelaporan fasilitas dan aset bulanan · {new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+            {t.dashboard.welcomeSubtitle} · {dateStr}
           </p>
         </div>
         <LinkButton href="/reports" variant="primary" className="self-start gap-2 sm:self-auto">
           <FileText size={15} />
-          Buat Laporan
+          {t.dashboard.createNewReport}
         </LinkButton>
       </div>
 
@@ -135,7 +137,7 @@ export default async function DashboardPage() {
                   {s.label}
                 </p>
                 <p className={`mt-0.5 text-3xl font-extrabold tabular-nums ${colors.num}`}>
-                  {s.value.toLocaleString("id-ID")}
+                  {s.value.toLocaleString(locale === "en" ? "en-US" : "id-ID")}
                 </p>
                 <p className="text-xs text-slate-400">{s.desc}</p>
               </div>
@@ -150,25 +152,25 @@ export default async function DashboardPage() {
           title={
             <span className="flex items-center gap-2">
               <Clock size={15} className="text-slate-400" />
-              Laporan Terbaru
+              {t.dashboard.recentReports}
             </span>
           }
-          description="10 laporan bulanan terakhir"
+          description={t.dashboard.recentReportsDesc}
           action={
             <LinkButton href="/reports" variant="outline" className="gap-1.5 text-xs">
-              Semua Laporan
+              {t.dashboard.allReports}
               <ArrowRight size={13} />
             </LinkButton>
           }
         />
-        <Table head={["Periode", "Site", "Status", "Aksi"]}>
+        <Table head={[t.common.period, t.common.site, t.common.status, t.common.actions]}>
           {recent.length === 0 ? (
-            <EmptyRow colSpan={4} label="Belum ada laporan" />
+            <EmptyRow colSpan={4} label={t.dashboard.noReportsYet} />
           ) : (
             recent.map((r) => (
               <tr key={r.id} className="transition-colors hover:bg-slate-50/70">
                 <td className="px-4 py-3 font-mono text-sm font-medium tabular-nums text-slate-700">
-                  {MONTH_NAMES[r.periodMonth]} {r.periodYear}
+                  {getShortMonthName(r.periodMonth, locale)} {r.periodYear}
                 </td>
                 <td className="px-4 py-3">
                   <span className="font-semibold text-slate-800">{r.site.code}</span>
@@ -176,7 +178,7 @@ export default async function DashboardPage() {
                 </td>
                 <td className="px-4 py-3">
                   <Badge tone={statusTone[r.status] ?? "gray"}>
-                    {STATUS_LABEL[r.status] ?? r.status}
+                    {t.status[r.status as keyof typeof t.status] ?? r.status}
                   </Badge>
                 </td>
                 <td className="px-4 py-3">
@@ -185,7 +187,7 @@ export default async function DashboardPage() {
                     className="inline-flex items-center gap-1 text-sm font-semibold transition-colors hover:underline"
                     style={{ color: "var(--brand-600)" }}
                   >
-                    Buka
+                    {t.common.open}
                     <ArrowRight size={12} />
                   </Link>
                 </td>

@@ -31,13 +31,25 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+import { cookies } from "next/headers";
+import { LanguageProvider } from "@/lib/i18n/language-context";
+import type { Locale } from "@/lib/i18n/types";
+
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const cookieStore = await cookies();
+  const localeCookie = cookieStore.get("app_locale")?.value;
+  const initialLocale: Locale = localeCookie === "en" ? "en" : "id";
+
   return (
     <html
-      lang="id"
+      lang={initialLocale}
       className={`${inter.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <LanguageProvider initialLocale={initialLocale}>
+          {children}
+        </LanguageProvider>
+      </body>
     </html>
   );
 }

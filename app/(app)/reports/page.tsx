@@ -1,10 +1,11 @@
+import { cookies } from "next/headers";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getAccessibleSiteIds } from "@/lib/report-service";
-import { MONTH_NAMES_ID } from "@/lib/section-config";
 import { LinkButton } from "@/components/ui";
 import ReportsBulkManager from "@/components/report/reports-bulk-manager";
 import ExportDialog from "@/components/report/export-dialog";
+import { getDictionary, getMonthName, type Locale } from "@/lib/i18n";
 
 export const metadata = { title: "Laporan Bulanan" };
 
@@ -18,11 +19,19 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<{ year?: string; month?: string }>;
 }) {
-  const user = await requireUser();
-  const sp = await searchParams;
+  const [user, cookieStore, sp] = await Promise.all([
+    requireUser(),
+    cookies(),
+    searchParams,
+  ]);
+
+  const locale: Locale = cookieStore.get("app_locale")?.value === "en" ? "en" : "id";
+  const t = getDictionary(locale);
+
   const now = new Date();
   const year = Number(sp.year) || now.getFullYear();
   const month = Number(sp.month) || now.getMonth() + 1;
+  const monthName = getMonthName(month, locale);
 
   const siteIds = await getAccessibleSiteIds(user);
   const [sites, reports, regions] = await Promise.all([
@@ -54,22 +63,22 @@ export default async function ReportsPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold">Laporan Bulanan</h1>
+          <h1 className="text-xl font-bold">{t.reports.title}</h1>
           <p className="text-sm text-slate-500">
-            {MONTH_NAMES_ID[month - 1]} {year}
+            {monthName} {year}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <LinkButton href={qs(prevY, prevM)} variant="outline">← Sebelumnya</LinkButton>
-          <LinkButton href={qs(nextY, nextM)} variant="outline">Berikutnya →</LinkButton>
+          <LinkButton href={qs(prevY, prevM)} variant="outline">← {t.common.previous}</LinkButton>
+          <LinkButton href={qs(nextY, nextM)} variant="outline">{t.common.next} →</LinkButton>
           <ExportDialog
             year={year}
             month={month}
-            monthName={MONTH_NAMES_ID[month - 1]}
+            monthName={monthName}
             regions={regions}
             sites={sitesForExport}
           />
-          <LinkButton href="/reports/new">+ Laporan Baru</LinkButton>
+          <LinkButton href="/reports/new">+ {t.reports.createNew}</LinkButton>
         </div>
       </div>
 
@@ -78,7 +87,7 @@ export default async function ReportsPage({
         reports={reports}
         year={year}
         month={month}
-        monthName={MONTH_NAMES_ID[month - 1]}
+        monthName={monthName}
         isSuperAdminOrAdmin={isSuperAdminOrAdmin}
       />
     </div>

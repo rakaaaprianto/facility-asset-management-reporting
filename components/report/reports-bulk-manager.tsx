@@ -2,10 +2,11 @@
 
 import { useState, useActionState, useTransition } from "react";
 import Link from "next/link";
-import { Trash2, CheckSquare, Square, AlertTriangle, RefreshCw } from "lucide-react";
+import { Trash2, CheckSquare, Square, AlertTriangle } from "lucide-react";
 import { Badge, Button, Card, CardHeader, Table, EmptyRow, statusTone } from "@/components/ui";
 import { deleteReportsBulk, deleteReportsByMonth, type ActionState } from "@/lib/report-actions";
 import DeleteReportButton from "./delete-report-button";
+import { useTranslation } from "@/lib/i18n/language-context";
 
 export type ReportItem = {
   id: string;
@@ -41,6 +42,7 @@ export default function ReportsBulkManager({
   monthName: string;
   isSuperAdminOrAdmin: boolean;
 }) {
+  const { t, locale } = useTranslation();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkState, bulkAction, bulkPending] = useActionState(deleteReportsBulk, initial);
   const [monthState, monthAction, monthPending] = useActionState(deleteReportsByMonth, initial);
@@ -68,7 +70,9 @@ export default function ReportsBulkManager({
 
   function handleBulkDelete() {
     if (selectedIds.length === 0) return;
-    const msg = `⚠️ PERINGATAN:\n\nApakah Anda yakin ingin menghapus ${selectedIds.length} laporan terpilih?\n\nSemua data section & lampiran terkait akan terhapus permanen dan tidak dapat dikembalikan.`;
+    const msg = locale === "en"
+      ? `⚠️ WARNING:\n\nAre you sure you want to delete ${selectedIds.length} selected reports?\n\nAll associated sections & attachments will be permanently deleted and cannot be recovered.`
+      : `⚠️ PERINGATAN:\n\nApakah Anda yakin ingin menghapus ${selectedIds.length} laporan terpilih?\n\nSemua data section & lampiran terkait akan terhapus permanen dan tidak dapat dikembalikan.`;
     if (!confirm(msg)) return;
 
     const fd = new FormData();
@@ -81,10 +85,12 @@ export default function ReportsBulkManager({
 
   function handleDeleteMonth() {
     if (reports.length === 0) {
-      alert("Tidak ada laporan pada bulan ini untuk dihapus.");
+      alert(locale === "en" ? "No reports found for this month to delete." : "Tidak ada laporan pada bulan ini untuk dihapus.");
       return;
     }
-    const msg = `🚨 PERINGATAN HAPUS SEKALIGUS BULAN INI:\n\nAnda akan menghapus SEMUA (${reports.length}) laporan pada periode:\n📅 ${monthName} ${year}\n\nSemua data sheet, isian, dan lampiran di seluruh site pada bulan ini akan DIHAPUS PERMANEN!\n\nKetik 'OK' atau klik OK jika Anda benar-benar yakin ingin melanjutkan.`;
+    const msg = locale === "en"
+      ? `🚨 WARNING DELETE ALL REPORTS THIS MONTH:\n\nYou will permanently delete ALL (${reports.length}) reports for period:\n📅 ${monthName} ${year}\n\nAll sheet data, entries, and attachments across all sites for this month will be PERMANENTLY REMOVED!\n\nClick OK if you are completely sure you want to proceed.`
+      : `🚨 PERINGATAN HAPUS SEKALIGUS BULAN INI:\n\nAnda akan menghapus SEMUA (${reports.length}) laporan pada periode:\n📅 ${monthName} ${year}\n\nSemua data sheet, isian, dan lampiran di seluruh site pada bulan ini akan DIHAPUS PERMANEN!\n\nKetik 'OK' atau klik OK jika Anda benar-benar yakin ingin melanjutkan.`;
     if (!confirm(msg)) return;
 
     const fd = new FormData();
@@ -117,20 +123,20 @@ export default function ReportsBulkManager({
             <button
               type="button"
               onClick={toggleSelectAll}
-              className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-brand-600"
+              className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-brand-600 cursor-pointer"
             >
               {isAllSelected ? (
                 <CheckSquare size={16} className="text-brand-600" />
               ) : (
                 <Square size={16} className="text-slate-400" />
               )}
-              {isAllSelected ? "Batal Pilih Semua" : "Pilih Semua Laporan"}
+              {isAllSelected ? t.common.deselectAll : t.common.selectAll}
             </button>
           ) : null}
 
           {selectedIds.length > 0 ? (
             <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-semibold text-brand-700">
-              {selectedIds.length} laporan dipilih
+              {selectedIds.length} {t.common.selectedCount}
             </span>
           ) : null}
         </div>
@@ -146,8 +152,8 @@ export default function ReportsBulkManager({
             >
               <Trash2 size={14} />{" "}
               {bulkPending || isPending
-                ? "Menghapus…"
-                : `Hapus Terpilih (${selectedIds.length})`}
+                ? t.common.deleting
+                : `${t.common.deleteSelected} (${selectedIds.length})`}
             </Button>
           ) : null}
 
@@ -161,8 +167,8 @@ export default function ReportsBulkManager({
             >
               <AlertTriangle size={13} className="text-red-500" />{" "}
               {monthPending || isPending
-                ? "Menghapus Bulan Ini…"
-                : `Hapus Semua Laporan Bulan Ini (${reports.length})`}
+                ? t.common.deleting
+                : `${t.reports.deleteMonthReports} (${reports.length})`}
             </Button>
           ) : null}
         </div>
@@ -170,21 +176,25 @@ export default function ReportsBulkManager({
 
       <Card>
         <CardHeader
-          title={`Status ${sites.length} Site (${reports.length} terisi)`}
-          description="Klik baris untuk membuka laporan atau gunakan centang untuk menghapus banyak laporan sekaligus."
+          title={
+            locale === "en"
+              ? `Status of ${sites.length} Sites (${reports.length} filled)`
+              : `Status ${sites.length} Site (${reports.length} terisi)`
+          }
+          description={t.reports.clickRowHint}
         />
         <Table
           head={[
             ...(existingReportIds.length > 0 ? [""] : []),
-            "Site",
-            "Nama Site",
-            "Status Laporan",
-            "Terakhir Diubah",
-            "Aksi",
+            t.common.site,
+            t.common.siteName,
+            t.common.status,
+            t.common.lastModified,
+            t.common.actions,
           ]}
         >
           {sites.length === 0 ? (
-            <EmptyRow colSpan={6} label="Tidak ada site yang dapat Anda akses." />
+            <EmptyRow colSpan={6} label={t.reports.noAccessibleSites} />
           ) : (
             sites.map((s) => {
               const r = reportMap.get(s.id);
@@ -215,14 +225,16 @@ export default function ReportsBulkManager({
                   <td className="px-4 py-2.5 text-slate-700">{s.name}</td>
                   <td className="px-4 py-2.5">
                     {r ? (
-                      <Badge tone={statusTone[r.status]}>{r.status}</Badge>
+                      <Badge tone={statusTone[r.status]}>
+                        {t.status[r.status as keyof typeof t.status] ?? r.status}
+                      </Badge>
                     ) : (
-                      <Badge>BELUM ADA</Badge>
+                      <Badge>{t.status.NOT_CREATED}</Badge>
                     )}
                   </td>
                   <td className="px-4 py-2.5 text-xs text-slate-500">
                     {r?.updatedAt
-                      ? new Date(r.updatedAt).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" }) + " WIB"
+                      ? new Date(r.updatedAt).toLocaleString(locale === "en" ? "en-US" : "id-ID", { timeZone: "Asia/Jakarta" }) + " WIB"
                       : "-"}
                   </td>
                   <td className="px-4 py-2.5">
@@ -233,11 +245,15 @@ export default function ReportsBulkManager({
                             href={`/reports/${r.id}`}
                             className="text-sm font-medium text-brand-600 hover:underline"
                           >
-                            Buka
+                            {t.common.open}
                           </Link>
                           <DeleteReportButton
                             reportId={r.id}
-                            confirmText={`Hapus laporan ${s.code} ${monthName} ${year}? Semua data section & lampiran ikut terhapus dan tidak dapat dikembalikan.`}
+                            confirmText={
+                              locale === "en"
+                                ? `Delete report for ${s.code} (${monthName} ${year})? All sections & attachments will be lost.`
+                                : `Hapus laporan ${s.code} ${monthName} ${year}? Semua data section & lampiran ikut terhapus dan tidak dapat dikembalikan.`
+                            }
                           />
                         </>
                       ) : (
@@ -245,7 +261,7 @@ export default function ReportsBulkManager({
                           href={`/reports/new?site=${s.id}&year=${year}&month=${month}`}
                           className="text-sm font-medium text-brand-600 hover:underline"
                         >
-                          Buat
+                          {t.common.create}
                         </Link>
                       )}
                     </div>

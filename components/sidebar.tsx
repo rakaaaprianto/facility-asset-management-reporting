@@ -17,6 +17,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { logout } from "@/lib/auth-actions";
+import { useTranslation } from "@/lib/i18n/language-context";
 
 export type MenuItem = { href: string; label: string; icon: string };
 
@@ -34,6 +35,7 @@ const ICONS: Record<string, React.ComponentType<{ size?: number; className?: str
 
 export default function Sidebar({ items }: { items: MenuItem[] }) {
   const pathname = usePathname();
+  const { t } = useTranslation();
 
   return (
     <aside
@@ -61,7 +63,7 @@ export default function Sidebar({ items }: { items: MenuItem[] }) {
       {/* Nav Label */}
       <div className="px-4 pt-5 pb-1">
         <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--sidebar-text-muted)" }}>
-          Menu
+          {t.nav.menu}
         </p>
       </div>
 
@@ -71,6 +73,7 @@ export default function Sidebar({ items }: { items: MenuItem[] }) {
           const Icon = ICONS[item.icon] ?? LayoutDashboard;
           const active =
             pathname === item.href || pathname.startsWith(item.href + "/");
+          const label = ((t.nav as unknown as Record<string, string>)[item.icon] ?? item.label);
 
           return (
             <Link
@@ -106,7 +109,7 @@ export default function Sidebar({ items }: { items: MenuItem[] }) {
               }}
             >
               <Icon size={16} className="shrink-0" />
-              <span className="flex-1 truncate">{item.label}</span>
+              <span className="flex-1 truncate">{label}</span>
               {active && (
                 <ChevronRight size={14} className="shrink-0 opacity-70" />
               )}
@@ -138,7 +141,7 @@ export default function Sidebar({ items }: { items: MenuItem[] }) {
           }}
         >
           <LogOut size={15} className="shrink-0" />
-          Keluar
+          {t.common.logout}
         </button>
       </form>
     </aside>
