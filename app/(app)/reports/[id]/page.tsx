@@ -174,6 +174,8 @@ export default async function ReportDetailPage({
     }),
   ]);
 
+  const latestRevisionLog = logs.find((l) => l.toStatus === "NEEDS_REVISION" && l.note);
+
   if ((user.roleCode === "PIC" || user.roleCode === "SUPPORT") && !accessibleSiteIds.includes(report.siteId)) {
     notFound();
   }
@@ -227,6 +229,26 @@ export default async function ReportDetailPage({
         </div>
       </div>
 
+      {report.status === "NEEDS_REVISION" && latestRevisionLog?.note ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+          <div className="flex items-start gap-2.5">
+            <span className="text-lg leading-none">✏️</span>
+            <div>
+              <p className="text-sm font-semibold text-red-900">
+                Laporan Memerlukan Revisi
+              </p>
+              <p className="mt-1 text-sm font-medium text-red-800 whitespace-pre-wrap">
+                Catatan Admin: &ldquo;{latestRevisionLog.note}&rdquo;
+              </p>
+              <p className="mt-1 text-xs text-red-600">
+                Diminta oleh {latestRevisionLog.actedBy?.name ?? "Admin"} pada{" "}
+                {new Date(latestRevisionLog.createdAt).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })} WIB
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {(editable || canReview || logs.length > 0) && (
         <Card className="p-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -245,12 +267,18 @@ export default async function ReportDetailPage({
             </div>
           ) : null}
           {logs.length > 0 ? (
-            <ul className="mt-4 space-y-1 border-t border-slate-100 pt-3 text-xs text-slate-500">
+            <ul className="mt-4 space-y-1.5 border-t border-slate-100 pt-3 text-xs text-slate-500">
               {logs.map((l) => (
-                <li key={l.id}>
-                  <span className="font-medium text-slate-700">{new Date(l.createdAt).toLocaleString("id-ID")}</span> —{" "}
-                  {l.fromStatus ?? "(baru)"} → {l.toStatus} oleh {l.actedBy?.name ?? "sistem"}
-                  {l.note ? ` · "${l.note}"` : ""}
+                <li key={l.id} className="flex flex-wrap items-baseline gap-1.5">
+                  <span className="font-medium text-slate-700">
+                    {new Date(l.createdAt).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })} WIB
+                  </span>
+                  <span>— oleh <span className="font-medium text-slate-800">{l.actedBy?.name ?? "sistem"}</span></span>
+                  {l.note ? (
+                    <span className="rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 border border-amber-200">
+                      Catatan: &ldquo;{l.note}&rdquo;
+                    </span>
+                  ) : null}
                 </li>
               ))}
             </ul>

@@ -29,7 +29,7 @@ export default async function AuditPage({
 
   const serializedLogs = logs.map((l) => ({
     id: l.id,
-    createdAt: new Date(l.createdAt).toLocaleString("id-ID"),
+    createdAt: new Date(l.createdAt).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" }) + " WIB",
     actorEmail: l.actor?.email ?? "sistem",
     action: l.action,
     entityType: l.entityType,

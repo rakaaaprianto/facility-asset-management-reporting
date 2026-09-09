@@ -221,7 +221,9 @@ export default function ReportsBulkManager({
                     )}
                   </td>
                   <td className="px-4 py-2.5 text-xs text-slate-500">
-                    {r?.updatedAt ? new Date(r.updatedAt).toLocaleString("id-ID") : "-"}
+                    {r?.updatedAt
+                      ? new Date(r.updatedAt).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" }) + " WIB"
+                      : "-"}
                   </td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-3">

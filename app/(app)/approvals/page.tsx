@@ -55,7 +55,9 @@ export default async function ApprovalsPage() {
                 </td>
                 <td className="px-4 py-2.5">{r.submittedBy?.name ?? "-"}</td>
                 <td className="px-4 py-2.5 text-xs text-slate-500">
-                  {r.submittedAt ? new Date(r.submittedAt).toLocaleString("id-ID") : "-"}
+                  {r.submittedAt
+                    ? new Date(r.submittedAt).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" }) + " WIB"
+                    : "-"}
                 </td>
                 <td className="px-4 py-2.5">
                   <Link href={`/reports/${r.id}`} className="text-sm font-medium text-brand-600 hover:underline">
