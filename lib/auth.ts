@@ -16,7 +16,7 @@ export type SessionUser = {
   siteIds: string[];
 };
 
-async function loadUser(userId: string): Promise<SessionUser | null> {
+async function loadUser(userId: string, tokenIat?: number): Promise<SessionUser | null> {
   const user = await db.user.findUnique({
     where: { id: userId },
     include: {
@@ -25,6 +25,16 @@ async function loadUser(userId: string): Promise<SessionUser | null> {
     },
   });
   if (!user || !user.isActive) return null;
+
+  // Session Revocation: Invalidate session tokens issued prior to password/profile updates
+  if (tokenIat && user.updatedAt) {
+    const userUpdateSec = Math.floor(user.updatedAt.getTime() / 1000);
+    // 2-second skew allowance between token issuance and database timestamp
+    if (tokenIat < userUpdateSec - 2) {
+      return null;
+    }
+  }
+
   return {
     id: user.id,
     email: user.email,
@@ -41,7 +51,7 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   const store = await cookies();
   const payload = await verifySessionToken(store.get(SESSION_COOKIE)?.value);
   if (!payload) return null;
-  return loadUser(payload.uid);
+  return loadUser(payload.uid, payload.iat);
 });
 
 export async function requireUser(): Promise<SessionUser> {

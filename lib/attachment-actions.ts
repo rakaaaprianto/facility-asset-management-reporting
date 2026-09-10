@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { canEditReport } from "@/lib/report-service";
 import { uploadFile, deleteFile } from "@/lib/storage";
+import { validateMagicBytes } from "@/lib/magic-bytes";
 
 export type FormState = { error?: string; success?: string };
 
@@ -46,7 +47,23 @@ export async function uploadAttachment(_prev: FormState, formData: FormData): Pr
   const safeName = file.name.replace(/[^\w.\-]+/g, "_").slice(-80);
   const storedName = `${randomUUID()}-${safeName}`;
   const bytes = Buffer.from(await file.arrayBuffer());
-  const safeMime = file.type || "application/octet-stream";
+
+  const magicCheck = validateMagicBytes(bytes, ext);
+  if (!magicCheck.valid) {
+    await db.auditLog.create({
+      data: {
+        actorId: user.id,
+        action: "ATTACHMENT_SECURITY_REJECT",
+        entityType: "Attachment",
+        entityId: reportId,
+      },
+    });
+    return {
+      error: `Validasi keamanan biner gagal: ${magicCheck.reason ?? "Format berkas tidak sesuai dengan tipe berkas aslinya."}`,
+    };
+  }
+
+  const safeMime = magicCheck.detectedType || file.type || "application/octet-stream";
   const storageKey = `reports/${reportId}/${storedName}`;
 
   await uploadFile(storageKey, bytes, safeMime);

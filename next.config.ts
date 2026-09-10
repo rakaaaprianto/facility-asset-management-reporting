@@ -27,30 +27,33 @@ const securityHeaders = [
   },
 ];
 
-const allowedOrigins = [
-  "localhost:3000",
-  "127.0.0.1:3000",
-  "*.vercel.app",
-  "monthly-reportfam.web.id",
-  "*.monthly-reportfam.web.id",
-];
+function sanitizeHost(input: string): string {
+  return input.trim().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+}
 
-// Allow optional custom origin from environment
-const customOrigin = process.env.APP_ORIGIN || process.env.NEXT_PUBLIC_APP_URL;
-if (customOrigin) {
-  const host = customOrigin.replace(/^https?:\/\//, "").replace(/\/$/, "");
-  if (host && !allowedOrigins.includes(host)) {
-    allowedOrigins.push(host);
-  }
+// Build allowed origins dynamically for Server Actions CSRF protection
+const allowedOriginsSet = new Set<string>(["localhost:3000", "127.0.0.1:3000"]);
+
+// Parse multiple origins from ALLOWED_ORIGINS (comma separated)
+if (process.env.ALLOWED_ORIGINS) {
+  process.env.ALLOWED_ORIGINS.split(",")
+    .map(sanitizeHost)
+    .filter(Boolean)
+    .forEach((host) => allowedOriginsSet.add(host));
 }
-if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
-  const vercelHost = process.env.VERCEL_PROJECT_PRODUCTION_URL.replace(/^https?:\/\//, "").replace(/\/$/, "");
-  if (vercelHost && !allowedOrigins.includes(vercelHost)) {
-    allowedOrigins.push(vercelHost);
-  }
+
+// Support single APP_ORIGIN / NEXT_PUBLIC_APP_URL
+const singleOrigin = process.env.APP_ORIGIN || process.env.NEXT_PUBLIC_APP_URL;
+if (singleOrigin) {
+  const host = sanitizeHost(singleOrigin);
+  if (host) allowedOriginsSet.add(host);
 }
+
+const allowedOrigins = Array.from(allowedOriginsSet);
 
 const nextConfig: NextConfig = {
+  output: "standalone",
+  poweredByHeader: false,
   experimental: {
     serverActions: {
       bodySizeLimit: "10mb",

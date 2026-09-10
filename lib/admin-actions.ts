@@ -5,6 +5,7 @@ import bcrypt from "bcrypt";
 import type { RoleCode } from "@/app/generated/prisma/client";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { validatePasswordComplexity } from "@/lib/password-validator";
 
 export type FormState = { error?: string; success?: string };
 
@@ -496,6 +497,7 @@ export async function deleteRefOption(formData: FormData): Promise<void> {
   revalidatePath("/master/sites");
 }
 
+
 export async function createUser(_prev: FormState, formData: FormData): Promise<FormState> {
   const actor = await requireUser();
   if (actor.roleCode !== "SUPER_ADMIN") return { error: "Hanya Super Admin dapat menambah user." };
@@ -504,8 +506,12 @@ export async function createUser(_prev: FormState, formData: FormData): Promise<
   const name = String(formData.get("name") ?? "").trim();
   const password = String(formData.get("password") ?? "");
   const roleCode = String(formData.get("roleCode") ?? "");
-  if (!email || !name || password.length < 8 || !roleCode) {
-    return { error: "Lengkapi form. Password minimal 8 karakter." };
+  if (!email || !name || !roleCode) {
+    return { error: "Lengkapi semua field yang wajib diisi." };
+  }
+  const check = validatePasswordComplexity(password);
+  if (!check.ok) {
+    return { error: check.reason };
   }
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { error: "Format email tidak valid." };
 
@@ -602,7 +608,8 @@ export async function changeOwnPassword(_prev: FormState, formData: FormData): P
   const user = await requireUser();
   const current = String(formData.get("currentPassword") ?? "");
   const next = String(formData.get("newPassword") ?? "");
-  if (next.length < 8) return { error: "Password baru minimal 8 karakter." };
+  const check = validatePasswordComplexity(next);
+  if (!check.ok) return { error: check.reason };
 
   const me = await db.user.findUniqueOrThrow({ where: { id: user.id } });
   if (!(await bcrypt.compare(current, me.passwordHash))) {
@@ -616,71 +623,3 @@ export async function changeOwnPassword(_prev: FormState, formData: FormData): P
   return { success: "Password berhasil diganti." };
 }
 
-// ============ AUDIT LOG MANAGEMENT ============
-
-export async function deleteAuditLog(formData: FormData): Promise<void> {
-  const actor = await requireUser();
-  if (actor.roleCode !== "SUPER_ADMIN") return;
-
-  const id = String(formData.get("id") ?? "");
-  if (!id) return;
-
-  try {
-    await db.auditLog.delete({ where: { id } });
-  } catch (e) {
-    console.error("deleteAuditLog error:", e);
-  }
-  revalidatePath("/admin/audit");
-}
-
-export async function deleteAuditLogsBulk(
-  _prev: FormState,
-  formData: FormData
-): Promise<FormState> {
-  const actor = await requireUser();
-  if (actor.roleCode !== "SUPER_ADMIN") {
-    return { error: "Hanya Super Admin yang dapat menghapus audit log." };
-  }
-
-  const idsJson = String(formData.get("ids") ?? "[]");
-  let ids: string[];
-  try {
-    ids = JSON.parse(idsJson);
-  } catch {
-    return { error: "Daftar ID log tidak valid." };
-  }
-
-  if (!Array.isArray(ids) || ids.length === 0) {
-    return { error: "Tidak ada log yang dipilih." };
-  }
-
-  try {
-    const res = await db.auditLog.deleteMany({
-      where: { id: { in: ids } },
-    });
-    revalidatePath("/admin/audit");
-    return { success: `${res.count} log aktivitas berhasil dihapus.` };
-  } catch (e) {
-    console.error("deleteAuditLogsBulk error:", e);
-    return { error: `Gagal menghapus log: ${e instanceof Error ? e.message : String(e)}` };
-  }
-}
-
-export async function clearAllAuditLogs(
-  _prev: FormState,
-  _formData: FormData
-): Promise<FormState> {
-  const actor = await requireUser();
-  if (actor.roleCode !== "SUPER_ADMIN") {
-    return { error: "Hanya Super Admin yang dapat mengosongkan audit log." };
-  }
-
-  try {
-    const res = await db.auditLog.deleteMany({});
-    revalidatePath("/admin/audit");
-    return { success: `Semua (${res.count}) log aktivitas berhasil dibersihkan.` };
-  } catch (e) {
-    console.error("clearAllAuditLogs error:", e);
-    return { error: `Gagal membersihkan log: ${e instanceof Error ? e.message : String(e)}` };
-  }
-}

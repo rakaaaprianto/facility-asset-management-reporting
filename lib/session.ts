@@ -1,6 +1,7 @@
 export type SessionPayload = {
   uid: string;
   role: string;
+  iat?: number;
   exp: number;
 };
 
@@ -20,7 +21,7 @@ function getSessionSecret(): string {
 
 const SECRET = getSessionSecret();
 export const SESSION_COOKIE = "amrs_session";
-const MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
+export const MAX_AGE_SECONDS = 60 * 60 * 24; // 24 hours absolute enterprise limit
 
 function bytesToBase64Url(bytes: Uint8Array): string {
   let binary = "";
@@ -65,10 +66,12 @@ async function getKey(): Promise<CryptoKey> {
 }
 
 export async function createSessionToken(uid: string, role: string): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
   const payload: SessionPayload = {
     uid,
     role,
-    exp: Math.floor(Date.now() / 1000) + MAX_AGE_SECONDS,
+    iat: now,
+    exp: now + MAX_AGE_SECONDS,
   };
   const body = bytesToBase64Url(new TextEncoder().encode(JSON.stringify(payload)));
   const key = await getKey();
