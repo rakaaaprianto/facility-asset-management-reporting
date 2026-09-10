@@ -1,9 +1,14 @@
 import "dotenv/config";
 import { PrismaClient } from "../app/generated/prisma/client";
 import { PrismaNeon } from "@prisma/adapter-neon";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 import bcrypt from "bcrypt";
 
-const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL! });
+const url = process.env.DATABASE_URL!;
+const adapter = url.includes("neon.tech")
+  ? new PrismaNeon({ connectionString: url })
+  : new PrismaPg(new Pool({ connectionString: url }));
 const db = new PrismaClient({ adapter });
 
 async function main() {
@@ -106,6 +111,7 @@ async function main() {
     ["ITC-DEPOK-6", "ITC Depok Sewa No 6", "Depok", "WILAYAH 2", null, null],
     ["ITC-DEPOK-7", "ITC Depok Sewa No 7", "Depok", "WILAYAH 2", null, null],
     ["ITC-DEPOK-8", "ITC Depok Sewa No 8", "Depok", "WILAYAH 2", null, null],
+    ["TBB-BDG", "Gedung TBB Bandung", "Bandung", "WILAYAH 2", null, null],
     // WILAYAH 3 — SEMARANG
     ["SRI-RATU", "Infomedia Sri Ratu Semarang", "Semarang", "WILAYAH 3", null, null],
     ["MAJAPAHIT-SMG", "Gedung Majapahit Semarang", "Semarang", "WILAYAH 3", null, null],
@@ -169,6 +175,7 @@ async function main() {
     ["PLAZA-TLK-MLG", "PKS/PTM/016", "2026-12-17", "Sewa Gedung", "KHAERUN N"],
   ];
   for (const [code, no, end, jenis, pic] of pksDefs) {
+    if (!sites[code]) continue;
     const exists = await db.pksContract.findFirst({ where: { siteId: sites[code], contractNo: no } });
     if (!exists) {
       await db.pksContract.create({
